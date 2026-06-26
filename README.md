@@ -292,6 +292,20 @@ docker logs sennara-cf | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'
    - `WHATSAPP_OTP_LANGUAGE=ar`
 5. Until Meta approves your template, keep `TWILIO_*` credentials configured as an SMS fallback.
 
+### WhatsApp webhooks setup
+
+1. In your Meta app dashboard, go to **WhatsApp > Configuration** and click **Edit** in the **Webhooks** section.
+2. Set the **Callback URL** to your public HTTPS URL, e.g.:
+   ```
+   https://your-domain.com/webhooks/whatsapp
+   ```
+3. Set a **Verify token**: any random string you choose, and save it in `backend/.env` as `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+4. Click **Verify and save**. Meta will send a GET request to the callback URL; the API will respond with the challenge only if the verify token matches.
+5. After subscribing, click **Manage webhook fields** and subscribe to:
+   - `messages` — incoming WhatsApp messages (useful for opt-in/opt-out)
+   - `message_status` — delivery/read/failed status updates for your OTP messages
+6. (Recommended) Copy the **App Secret** from the app dashboard and set `WHATSAPP_APP_SECRET` in `backend/.env`. The API will then validate `X-Hub-Signature-256` on every inbound webhook.
+
 ### 9. Stop everything
 
 ```bash

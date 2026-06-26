@@ -121,6 +121,12 @@ export const env = {
   get WHATSAPP_OTP_LANGUAGE() {
     return getDefault('WHATSAPP_OTP_LANGUAGE', 'ar');
   },
+  get WHATSAPP_WEBHOOK_VERIFY_TOKEN() {
+    return process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  },
+  get WHATSAPP_APP_SECRET() {
+    return process.env.WHATSAPP_APP_SECRET;
+  },
 
   get TWILIO_ACCOUNT_SID() {
     return process.env.TWILIO_ACCOUNT_SID;

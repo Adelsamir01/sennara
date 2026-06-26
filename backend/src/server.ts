@@ -12,6 +12,7 @@ import { closeRedis } from './config/redis';
 import { AppError } from './shared/errors/AppError';
 import { metricsMiddleware, metricsHandler } from './shared/metrics/metricsMiddleware';
 import authRoutes from './modules/auth/routes/authRoutes';
+import whatsappWebhookRoutes from './modules/auth/routes/whatsappWebhookRoutes';
 import waypointRoutes from './modules/waypoints/routes/waypointRoutes';
 import catchRoutes from './modules/catches/routes/catchRoutes';
 import feedRoutes from './modules/feed/routes/feedRoutes';
@@ -26,6 +27,11 @@ const API_PREFIX = env.API_PREFIX;
 
 app.use(helmet());
 app.use(cors());
+
+// WhatsApp webhook endpoint mounted before express.json so we can verify
+// Meta's X-Hub-Signature-256 against the raw request body.
+app.use('/webhooks/whatsapp', express.raw({ type: 'application/json' }), whatsappWebhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
 app.use(metricsMiddleware);
