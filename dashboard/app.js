@@ -36,8 +36,8 @@ async function api(method, path, body = null, auth = true) {
 function normalizeUser(apiUser) {
   return {
     id: apiUser.id,
-    name: apiUser.displayName || apiUser.name || apiUser.phoneNumber || 'User',
-    handle: apiUser.handle || 'user',
+    name: apiUser.displayName || apiUser.name || apiUser.phoneNumber || 'مستخدم',
+    handle: apiUser.handle || 'مستخدم',
     avatar: apiUser.avatarUrl,
     isPremium: (apiUser.subscriptionTier || '').toLowerCase() === 'premium',
     phone: apiUser.phoneNumber,
@@ -107,6 +107,7 @@ async function loadSpecies() {
     const { species } = await api('GET', '/species?limit=100');
     state.species = species.map(s => ({
       id: s.id,
+      display_name: s.arabicName || s.englishName || 'غير مسمى',
       english_name: s.englishName,
       arabic_name: s.arabicName,
       scientific_name: s.scientificName,
@@ -132,7 +133,7 @@ async function loadCatches() {
       userId: c.userId,
       userName: c.user?.displayName,
       userHandle: c.user?.handle,
-      speciesName: c.species?.arabicName,
+      speciesName: c.species?.displayName || c.customSpeciesName || 'غير معروف',
       weightKg: c.weightKg,
       lengthCm: c.lengthCm,
       location: c.location ? { lat: c.location.latitude, lng: c.location.longitude, name: '' } : null,
@@ -171,11 +172,17 @@ async function loadWeather() {
   try {
     const current = await api('GET', '/weather/current?lat=30&lng=31');
     const forecastRes = await api('GET', '/weather/forecast?lat=30&lng=31&days=5');
+    const directionLabel = (deg) => {
+      if (deg == null) return '';
+      const dirs = ['شمال', 'شمال شرق', 'شرق', 'جنوب شرق', 'جنوب', 'جنوب غرب', 'غرب', 'شمال غرب'];
+      return dirs[Math.round(deg / 45) % 8];
+    };
+
     const currentMapped = {
       location: { lat: current.location?.latitude, lng: current.location?.longitude },
       temperature: current.airTemperatureC,
       feelsLike: current.airTemperatureC,
-      wind: { speed: current.windSpeedKmh, direction: current.windDirectionDeg?.toString() || 'N', gust: current.windSpeedKmh },
+      wind: { speed: current.windSpeedKmh, direction: directionLabel(current.windDirectionDeg), gust: current.windSpeedKmh },
       pressure: current.barometricPressureHpa,
       humidity: 65,
       condition: 'clear',
@@ -186,7 +193,7 @@ async function loadWeather() {
       forecast: (forecastRes.forecast || []).map(d => ({
         date: d.date,
         temperature: { min: d.airTemperatureMinC ?? d.airTemperatureC - 3, max: d.airTemperatureMaxC ?? d.airTemperatureC + 4 },
-        wind: { speed: d.windSpeedKmh, direction: d.windDirectionDeg?.toString() || 'N' },
+        wind: { speed: d.windSpeedKmh, direction: directionLabel(d.windDirectionDeg) },
         condition: d.condition || 'clear',
         waveHeight: d.waveHeightM,
         tide: d.tide,
@@ -208,10 +215,10 @@ function renderCatches() {
     <div class="catch-card" data-id="${c.id}">
       <div class="catch-header">
         <div class="catch-user">
-          <div class="catch-avatar">${(c.userName || 'U').charAt(0)}</div>
+          <div class="catch-avatar">${(c.userName || 'م').charAt(0)}</div>
           <div>
-            <div class="catch-user-name">${c.userName || 'Unknown'}</div>
-            <div class="catch-user-handle">@${c.userHandle || 'unknown'}</div>
+            <div class="catch-user-name">${c.userName || 'غير معروف'}</div>
+            <div class="catch-user-handle">@${c.userHandle || 'غير معروف'}</div>
           </div>
         </div>
         <div class="catch-time">${timeAgo(c.createdAt)}</div>
@@ -219,7 +226,7 @@ function renderCatches() {
       <div class="catch-body">
         <div class="catch-species">
           <span class="catch-species-icon">🐟</span>
-          <span class="catch-species-name">${c.speciesName || 'Unknown'}</span>
+          <span class="catch-species-name">${c.speciesName || 'غير معروف'}</span>
         </div>
         ${c.photoUrl ? `<img src="${c.photoUrl}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin:8px 0;">` : ''}
         <div class="catch-stats">
@@ -255,9 +262,9 @@ function renderMyCatches() {
     <div class="catch-card" data-id="${c.id}">
       <div class="catch-header">
         <div class="catch-user">
-          <div class="catch-avatar">${(c.userName || 'U').charAt(0)}</div>
+          <div class="catch-avatar">${(c.userName || 'م').charAt(0)}</div>
           <div>
-            <div class="catch-user-name">${c.speciesName || 'Unknown'}</div>
+            <div class="catch-user-name">${c.speciesName || 'غير معروف'}</div>
             <div class="catch-user-handle">${timeAgo(c.createdAt)}</div>
           </div>
         </div>
@@ -267,7 +274,7 @@ function renderMyCatches() {
           ${c.weightKg ? `<div class="catch-stat"><strong>${c.weightKg} كجم</strong></div>` : ''}
           ${c.lengthCm ? `<div class="catch-stat"><strong>${c.lengthCm} سم</strong></div>` : ''}
         </div>
-        <div class="catch-location">📍 ${c.location?.name || 'Unknown'}</div>
+        <div class="catch-location">📍 ${c.location?.name || 'غير معروف'}</div>
       </div>
     </div>
   `).join('');
@@ -284,7 +291,7 @@ function renderWaypoints() {
       <h4>${w.name}</h4>
       <p>${w.description || ''}</p>
       <div class="coords">${w.location?.lat?.toFixed(4)}, ${w.location?.lng?.toFixed(4)}</div>
-      <span class="waypoint-type">${w.type || 'spot'}</span>
+      <span class="waypoint-type">${w.type || 'نقطة'}</span>
     </div>
   `).join('');
 }
@@ -324,26 +331,35 @@ function renderWeather() {
   `).join('');
 }
 
+const CATEGORY_LABELS = {
+  demersal: 'قاعي',
+  pelagic: 'محيطي',
+  freshwater: 'مياه عذبة',
+  brackish: 'مياه شبه مالحة',
+};
+
+function arabicCategory(category) {
+  return CATEGORY_LABELS[category] || category || '';
+}
+
 function renderSpecies() {
   const container = document.getElementById('species-list');
-  const search = (document.getElementById('species-search')?.value || '').toLowerCase();
+  const search = (document.getElementById('species-search')?.value || '').trim().toLowerCase();
   let filtered = state.species;
   if (search) {
     filtered = filtered.filter(s =>
-      s.english_name?.toLowerCase().includes(search) ||
+      s.display_name?.toLowerCase().includes(search) ||
       s.arabic_name?.includes(search) ||
-      s.scientific_name?.toLowerCase().includes(search)
+      s.egyptian_slang_names?.some(n => n.toLowerCase().includes(search))
     );
   }
   container.innerHTML = filtered.map(s => `
     <div class="species-card" data-id="${s.id}" onclick="showSpeciesDetail('${s.id}')">
       <div class="species-icon">🐟</div>
       <div class="species-info">
-        <div class="species-name">${s.arabic_name}</div>
-        <div class="species-name-en">${s.english_name} · <em>${s.scientific_name}</em></div>
+        <div class="species-name">${s.display_name}</div>
         <div class="species-meta">
-          <span class="species-tag category">${s.category || 'unknown'}</span>
-          <span class="species-tag water">${s.water_bodies?.[0] || 'unknown'}</span>
+          <span class="species-tag category">${arabicCategory(s.category)}</span>
           <span class="species-tag conservation ${s.conservation_status}">${s.conservation_status}</span>
         </div>
       </div>
@@ -356,9 +372,9 @@ function renderProfile() {
   if (!u) return;
   const myCatches = state.catches.filter(c => c.userId === u.id);
   document.getElementById('profile-card').innerHTML = `
-    <div class="profile-avatar">${(u.name || 'U').charAt(0)}</div>
+    <div class="profile-avatar">${(u.name || 'م').charAt(0)}</div>
     <div class="profile-name">${u.name}</div>
-    <div class="profile-handle">@${u.handle || 'user'}</div>
+    <div class="profile-handle">@${u.handle || 'مستخدم'}</div>
   `;
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card"><div class="stat-value">${myCatches.length}</div><div class="stat-label">صيدات</div></div>
@@ -370,9 +386,10 @@ function renderProfile() {
 }
 
 function populateCatchSpecies() {
-  const select = document.getElementById('catch-species');
-  select.innerHTML = '<option value="">اختر نوع السمكة...</option>' + 
-    state.species.map(s => `<option value="${s.id}">${s.arabic_name} (${s.english_name})</option>`).join('');
+  const datalist = document.getElementById('catch-species-datalist');
+  datalist.innerHTML = state.species
+    .map(s => `<option value="${s.display_name}"></option>`)
+    .join('');
 }
 
 // ─────────────────── ACTIONS ───────────────────
@@ -394,7 +411,7 @@ async function showCatchDetail(catchId) {
     const { comments } = await api('GET', `/feed/catches/${catchId}/comments`);
     const commentsHtml = comments.length ? comments.map(cm => `
       <div class="comment-item">
-        <div class="comment-avatar">${(cm.userName || 'U').charAt(0)}</div>
+        <div class="comment-avatar">${(cm.userName || 'م').charAt(0)}</div>
         <div class="comment-body">
           <div class="comment-name">${cm.userName}</div>
           <div class="comment-text">${cm.text}</div>
@@ -406,10 +423,10 @@ async function showCatchDetail(catchId) {
     document.getElementById('catch-detail-content').innerHTML = `
       <div class="catch-header" style="margin-bottom:16px">
         <div class="catch-user">
-          <div class="catch-avatar">${(c.userName || 'U').charAt(0)}</div>
+          <div class="catch-avatar">${(c.userName || 'م').charAt(0)}</div>
           <div>
-            <div class="catch-user-name">${c.userName || 'Unknown'}</div>
-            <div class="catch-user-handle">@${c.userHandle || 'unknown'}</div>
+            <div class="catch-user-name">${c.userName || 'غير معروف'}</div>
+            <div class="catch-user-handle">@${c.userHandle || 'غير معروف'}</div>
           </div>
         </div>
         <div class="catch-time">${timeAgo(c.createdAt)}</div>
@@ -417,7 +434,7 @@ async function showCatchDetail(catchId) {
       <div class="catch-body" style="margin-bottom:16px">
         <div class="catch-species">
           <span class="catch-species-icon">🐟</span>
-          <span class="catch-species-name">${c.speciesName || 'Unknown'}</span>
+          <span class="catch-species-name">${c.speciesName || 'غير معروف'}</span>
         </div>
         ${c.photoUrl ? `<img src="${c.photoUrl}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin:8px 0;">` : ''}
         <div class="catch-stats">
@@ -456,13 +473,12 @@ function shareCatch(catchId) {
 async function showSpeciesDetail(id) {
   const s = state.species.find(x => x.id === id);
   if (!s) return;
-  document.getElementById('species-detail-title').textContent = s.arabic_name;
+  document.getElementById('species-detail-title').textContent = s.display_name;
   document.getElementById('species-detail-content').innerHTML = `
     <div style="text-align:center;margin-bottom:16px"><div style="font-size:64px">🐟</div></div>
-    <div class="species-name" style="font-size:20px;text-align:center;margin-bottom:4px">${s.arabic_name}</div>
-    <div class="species-name-en" style="text-align:center;margin-bottom:16px">${s.english_name} · <em>${s.scientific_name}</em></div>
+    <div class="species-name" style="font-size:20px;text-align:center;margin-bottom:4px">${s.display_name}</div>
     <div class="species-meta" style="justify-content:center;margin-bottom:16px">
-      <span class="species-tag category">${s.category}</span>
+      <span class="species-tag category">${arabicCategory(s.category)}</span>
       <span class="species-tag conservation ${s.conservation_status}">${s.conservation_status}</span>
     </div>
     <div style="margin-bottom:16px">
@@ -504,7 +520,7 @@ async function uploadPhoto(file) {
 }
 
 async function saveCatch() {
-  const speciesId = document.getElementById('catch-species').value;
+  const speciesInput = document.getElementById('catch-species').value.trim();
   const weightKg = parseFloat(document.getElementById('catch-weight').value) || undefined;
   const lengthCm = parseFloat(document.getElementById('catch-length').value) || undefined;
   const lat = parseFloat(document.getElementById('catch-lat').value) || 30;
@@ -512,11 +528,13 @@ async function saveCatch() {
   const description = document.getElementById('catch-note').value;
   const photoInput = document.getElementById('catch-photo');
 
-  if (!speciesId) return alert('اختر نوع السمكة');
+  if (!speciesInput) return alert('اختر أو اكتب نوع السمكة');
+
+  const matched = state.species.find(s => s.display_name === speciesInput || s.arabic_name === speciesInput);
 
   try {
     const body = {
-      speciesId,
+      ...(matched ? { speciesId: matched.id } : { customSpeciesName: speciesInput }),
       weightKg,
       lengthCm,
       latitude: lat,

@@ -38,14 +38,14 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Angler One',
+                  'صياد',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '@angler_one',
+                  '@صياد_١',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -57,13 +57,13 @@ class ProfileScreen extends StatelessWidget {
           _SectionTitle(title: l10n.translate('common.settings')),
           _SettingsTile(
             icon: Icons.language,
-            title: 'Language / اللغة',
-            onTap: () => showFeedback(context, 'Language / اللغة'),
+            title: 'اللغة',
+            onTap: () => showFeedback(context, 'اللغة'),
           ),
           _SettingsTile(
             icon: Icons.notifications_outlined,
-            title: 'Notifications',
-            onTap: () => showFeedback(context, 'Notifications'),
+            title: 'الإشعارات',
+            onTap: () => showFeedback(context, 'الإشعارات'),
           ),
           _SettingsTile(
             icon: Icons.logout,

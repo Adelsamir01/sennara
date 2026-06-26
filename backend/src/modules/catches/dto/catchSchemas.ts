@@ -4,6 +4,7 @@ export const catchPrivacySchema = z.enum(['public', 'friends_only', 'secret']);
 
 export const createCatchSchema = z.object({
   speciesId: z.string().uuid().optional(),
+  customSpeciesName: z.string().max(120).optional(),
   waypointId: z.string().uuid().optional(),
   weightKg: z.number().positive().optional(),
   lengthCm: z.number().positive().optional(),

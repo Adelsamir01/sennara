@@ -5,6 +5,7 @@ export interface CatchRow {
   id: string;
   user_id: string;
   species_id: string | null;
+  custom_species_name: string | null;
   waypoint_id: string | null;
   weight_kg: number | null;
   length_cm: number | null;
@@ -26,6 +27,7 @@ export async function createCatch(
   userId: string,
   input: {
     speciesId?: string;
+    customSpeciesName?: string;
     waypointId?: string;
     weightKg?: number;
     lengthCm?: number;
@@ -44,19 +46,20 @@ export async function createCatch(
 ): Promise<CatchRow> {
   const result = await query<CatchRow>(
     `INSERT INTO catches (
-      user_id, species_id, waypoint_id, weight_kg, length_cm,
+      user_id, species_id, custom_species_name, waypoint_id, weight_kg, length_cm,
       bait_type, lure_type, technique, description,
       photo_urls, video_urls, privacy,
       exact_location, weather, catch_date
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-      ST_SetSRID(ST_MakePoint($14, $13), 4326)::geography,
-      $15, $16
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+      ST_SetSRID(ST_MakePoint($15, $14), 4326)::geography,
+      $16, $17
     )
     RETURNING *, ST_AsText(exact_location) as exact_location`,
     [
       userId,
       input.speciesId || null,
+      input.customSpeciesName || null,
       input.waypointId || null,
       input.weightKg || null,
       input.lengthCm || null,
@@ -89,6 +92,7 @@ export async function updateCatch(
   userId: string,
   input: Partial<{
     speciesId?: string;
+    customSpeciesName?: string;
     waypointId?: string;
     weightKg?: number;
     lengthCm?: number;
@@ -120,6 +124,7 @@ export async function updateCatch(
   };
 
   if (input.speciesId !== undefined) setField('species_id', input.speciesId || null);
+  if (input.customSpeciesName !== undefined) setField('custom_species_name', input.customSpeciesName || null);
   if (input.waypointId !== undefined) setField('waypoint_id', input.waypointId || null);
   if (input.weightKg !== undefined) setField('weight_kg', input.weightKg || null);
   if (input.lengthCm !== undefined) setField('length_cm', input.lengthCm || null);

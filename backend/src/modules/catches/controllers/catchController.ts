@@ -38,10 +38,19 @@ function publicCatch(row: CatchWithCounts, viewerId: string) {
     species: row.species_id
       ? {
           id: row.species_id,
+          displayName: row.species_arabic || row.species_english || 'غير معروف',
           englishName: row.species_english,
           arabicName: row.species_arabic,
         }
-      : null,
+      : row.custom_species_name
+        ? {
+            id: null,
+            displayName: row.custom_species_name,
+            englishName: null,
+            arabicName: null,
+          }
+        : null,
+    customSpeciesName: row.custom_species_name,
     weightKg: row.weight_kg ? parseFloat(String(row.weight_kg)) : null,
     lengthCm: row.length_cm ? parseFloat(String(row.length_cm)) : null,
     baitType: row.bait_type,
