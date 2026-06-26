@@ -162,6 +162,15 @@ docker compose --profile setup run --rm createbuckets
 docker compose up -d --scale api=3
 ```
 
+### Windows / WSL2 Quick Notes
+
+1. Clone the repo inside WSL (e.g. `~/sennara`) instead of `/mnt/c/...` for much better Docker file-system performance.
+2. Make sure Docker Desktop is running with the **WSL2 backend** enabled for your distro.
+3. Run all `docker compose` commands from a WSL terminal (Ubuntu, Debian, etc.).
+4. The `.gitattributes` file in this repo forces LF line endings for scripts and config files, so they work inside Linux containers without manual conversion.
+
+If `docker compose` is not found, use the legacy `docker-compose` plugin or install the Docker Compose CLI plugin in WSL.
+
 ### Services
 
 | Service | URL | Notes |
