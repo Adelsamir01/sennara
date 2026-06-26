@@ -14,6 +14,9 @@ const state = {
   currentCatch: null,
 };
 
+let map = null;
+let markerLayer = null;
+
 // ─────────────────── API ───────────────────
 async function api(method, path, body = null, auth = true) {
   const url = `${API_BASE}${path}`;
@@ -95,6 +98,10 @@ function showTab(tabName) {
   document.querySelector(`.nav-item[data-tab="${tabName}"]`)?.classList.add('active');
   const titles = { feed: 'الرئيسية', map: 'الخريطة', logbook: 'سجل الصيد', weather: 'الطقس', species: 'الأنواع', profile: 'الملف الشخصي' };
   document.getElementById('screen-title').textContent = titles[tabName] || 'سنارة';
+  if (tabName === 'map') {
+    initMap();
+    updateMapMarkers();
+  }
 }
 
 // ─────────────────── DATA LOADING ───────────────────
@@ -148,6 +155,7 @@ async function loadCatches() {
     }));
     renderCatches();
     renderMyCatches();
+    if (state.currentTab === 'map') updateMapMarkers();
   } catch (e) {}
 }
 
@@ -165,6 +173,7 @@ async function loadWaypoints() {
       createdAt: w.createdAt,
     }));
     renderWaypoints();
+    if (state.currentTab === 'map') updateMapMarkers();
   } catch (e) {}
 }
 
@@ -202,6 +211,78 @@ async function loadWeather() {
     state.weather = { current: currentMapped, forecast };
     renderWeather();
   } catch (e) {}
+}
+
+// ─────────────────── MAP ───────────────────
+function initMap() {
+  if (map) {
+    setTimeout(() => map.invalidateSize(), 100);
+    return;
+  }
+  const container = document.getElementById('map');
+  if (!container) return;
+  map = L.map('map').setView([30.0444, 31.2357], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+function updateMapMarkers() {
+  if (!map || !markerLayer) return;
+  markerLayer.clearLayers();
+
+  state.catches.forEach(c => {
+    if (!c.location) return;
+    const marker = L.marker([c.location.lat, c.location.lng], { title: c.speciesName || 'صيد' });
+    marker.bindPopup(`
+      <div dir="rtl" style="text-align:right;font-family:Cairo,sans-serif;">
+        <strong>${c.speciesName || 'صيد'}</strong><br>
+        ${c.weightKg ? c.weightKg + ' كجم' : ''} ${c.lengthCm ? c.lengthCm + ' سم' : ''}<br>
+        <small>${c.userName || 'صياد'}</small>
+      </div>
+    `);
+    markerLayer.addLayer(marker);
+  });
+
+  state.waypoints.forEach(w => {
+    if (!w.location) return;
+    const marker = L.marker([w.location.lat, w.location.lng], {
+      title: w.name || 'نقطة',
+      icon: L.divIcon({ className: 'waypoint-marker', html: '📍', iconSize: [24, 24] }),
+    });
+    marker.bindPopup(`
+      <div dir="rtl" style="text-align:right;font-family:Cairo,sans-serif;">
+        <strong>${w.name || 'نقطة'}</strong><br>
+        <small>${w.type || 'نقطة'}</small>
+      </div>
+    `);
+    markerLayer.addLayer(marker);
+  });
+
+  const all = [
+    ...state.catches.filter(c => c.location).map(c => [c.location.lat, c.location.lng]),
+    ...state.waypoints.filter(w => w.location).map(w => [w.location.lat, w.location.lng]),
+  ];
+  if (all.length > 0) {
+    map.fitBounds(L.latLngBounds(all).pad(0.1), { maxZoom: 14 });
+  }
+}
+
+function centerMapOnUser() {
+  if (!navigator.geolocation || !map) return;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      map.setView([latitude, longitude], 14);
+      L.marker([latitude, longitude], {
+        icon: L.divIcon({ className: 'user-marker', html: '📍', iconSize: [24, 24] }),
+      }).addTo(markerLayer).bindPopup('موقعك الحالي');
+    },
+    () => alert('تعذر الحصول على الموقع'),
+    { enableHighAccuracy: true }
+  );
 }
 
 // ─────────────────── RENDERERS ───────────────────
@@ -641,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-save-catch')?.addEventListener('click', saveCatch);
   document.getElementById('btn-use-location')?.addEventListener('click', useCurrentLocation);
+  document.getElementById('btn-map-locate')?.addEventListener('click', centerMapOnUser);
   document.getElementById('catch-photo')?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     const preview = document.getElementById('catch-photo-preview');

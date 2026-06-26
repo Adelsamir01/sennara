@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/l10n/app_localizations.dart';
 import 'feed_screen.dart';
 import 'logbook_screen.dart';
+import 'map_screen.dart';
 import 'profile_screen.dart';
 import 'weather_screen.dart';
 
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _screens = const [
     FeedScreen(),
+    MapScreen(),
     WeatherScreen(),
     LogbookScreen(),
     ProfileScreen(),
@@ -43,6 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.rss_feed_outlined),
             selectedIcon: const Icon(Icons.rss_feed),
             label: l10n.translate('feed.title'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.map_outlined),
+            selectedIcon: const Icon(Icons.map),
+            label: l10n.translate('map.title'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.wb_sunny_outlined),
