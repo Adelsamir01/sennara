@@ -1,0 +1,30 @@
+# Local development overrides.
+# This file is loaded automatically by docker compose.
+# It mounts source code for hot reload and exposes DB/Redis directly.
+
+services:
+  api:
+    build:
+      target: builder
+    command: ["npx", "tsx", "watch", "src/server.ts"]
+    volumes:
+      - ./backend/src:/app/src:ro
+    environment:
+      NODE_ENV: development
+
+  worker:
+    build:
+      target: builder
+    command: ["npx", "tsx", "watch", "src/jobs/worker.ts"]
+    volumes:
+      - ./backend/src:/app/src:ro
+    environment:
+      NODE_ENV: development
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

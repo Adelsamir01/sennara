@@ -1,0 +1,315 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Reverse Proxy
+  # ---------------------------------------------------------------------------
+  nginx:
+    build:
+      context: ./infrastructure/nginx
+      dockerfile: Dockerfile
+    container_name: sennara-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # API Backend (stateless, scalable)
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sennara-api
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sennara_dev
+      REDIS_URL: redis://redis:6379/0
+      DB_POOL_MAX: 20
+      DB_IDLE_TIMEOUT_MS: 30000
+      DB_CONNECTION_TIMEOUT_MS: 5000
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: sennara-uploads
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - sennara-network
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+
+  # ---------------------------------------------------------------------------
+  # Background Workers
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sennara-worker
+    command: ["node", "scripts/worker-entrypoint.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sennara_dev
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: sennara-uploads
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Database Migrations
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sennara-migrate
+    command: ["node", "scripts/migrate.js"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sennara_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./database:/database:ro
+    networks:
+      - sennara-network
+    profiles:
+      - migrate
+    restart: no
+
+  # ---------------------------------------------------------------------------
+  # Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:15-3.4
+    container_name: sennara-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sennara_dev
+    volumes:
+      - sennara_postgres_data:/var/lib/postgresql/data
+    networks:
+      - sennara-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sennara_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: sennara-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - sennara_redis_data:/data
+    networks:
+      - sennara-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Object Storage
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: sennara-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - sennara_minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - sennara-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  createbuckets:
+    image: minio/mc:latest
+    container_name: sennara-createbuckets
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/sennara-uploads || true;
+      /usr/bin/mc anonymous set download myminio/sennara-uploads || true;
+      exit 0;
+      "
+    networks:
+      - sennara-network
+    profiles:
+      - setup
+    restart: no
+
+  # ---------------------------------------------------------------------------
+  # Monitoring: Prometheus
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sennara-prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - sennara_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Monitoring: Grafana
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sennara-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - sennara_grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Monitoring: Exporters
+  # ---------------------------------------------------------------------------
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: sennara-node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: sennara-cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: sennara-redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: sennara-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/sennara_dev?sslmode=disable
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Backups
+  # ---------------------------------------------------------------------------
+  backup:
+    image: postgres:15-alpine
+    container_name: sennara-backup
+    command: >
+      sh -c "while true; do
+        echo \"Starting backup at $$(date -Iseconds)\";
+        PGPASSWORD=postgres pg_dump -h postgres -U postgres -d sennara_dev | gzip > /backups/sennara-$$(date +%Y%m%d-%H%M%S).sql.gz;
+        echo \"Backup completed.\";
+        sleep 86400;
+      done"
+    volumes:
+      - sennara_backups:/backups
+    networks:
+      - sennara-network
+    profiles:
+      - backup
+    restart: unless-stopped
+
+networks:
+  sennara-network:
+    driver: bridge
+
+volumes:
+  sennara_postgres_data:
+  sennara_redis_data:
+  sennara_minio_data:
+  sennara_prometheus_data:
+  sennara_grafana_data:
+  sennara_backups:
