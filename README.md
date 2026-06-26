@@ -4,14 +4,14 @@ A cross-platform mobile application and scalable backend for Egyptian anglers, i
 
 ## Current public demo
 
-The stack is currently exposed through a free **localtunnel** at:
+The stack is currently exposed through a free **Cloudflare Quick Tunnel** at:
 
-**`https://sennara.loca.lt/`**
+**`https://bunny-ampland-click-ryan.trycloudflare.com/`**
 
 - Tap **“الدخول كزائر”** to log in with a demo account.
 - Use **“+ صيد جديد”** to add a catch with a fish photo and GPS location.
 
-> This is a temporary tunnel URL. For a permanent domain you will need a Cloudflare Tunnel (or similar) plus your own domain.
+> Quick Tunnel URLs are temporary. If the tunnel container restarts, the URL changes. For a stable domain you need a Cloudflare account plus your own domain (or Cloudflare's free subdomain on a zone).
 
 ## Tech Stack
 
@@ -244,21 +244,27 @@ Native plugins (camera, GPS, maps) do not work in the browser; use an Android/iO
 
 ### 8. Expose the stack publicly (optional)
 
-**Quick and free (temporary URL):** use localtunnel to get a public HTTPS URL.
+**Quick and free (temporary URL):** use a Cloudflare Quick Tunnel to get a public HTTPS URL with no account required.
 
 ```bash
-docker run -d --name sennara-lt --network sennara_sennara-network \
-  --restart unless-stopped node:20-alpine \
-  sh -c "npm install -g localtunnel && lt --port 80 --local-host nginx --subdomain sennara"
+docker run -d --name sennara-cf --network sennara_sennara-network \
+  --restart unless-stopped cloudflare/cloudflared:latest \
+  tunnel --url http://nginx:80
 ```
 
-Then update `S3_PUBLIC_ENDPOINT` in `docker-compose.yml` to the same public URL and rebuild the API container:
+Then copy the printed `*.trycloudflare.com` URL, update `S3_PUBLIC_ENDPOINT` in `docker-compose.yml` to match, and rebuild the API container:
 
 ```bash
 docker compose up -d --build api
 ```
 
-**Permanent domain:** sign up for a free Cloudflare account, register a free domain (e.g. `sennara.tk` via Freenom), add it to Cloudflare, create a Cloudflare Tunnel, and run `cloudflared` with the tunnel token.
+You can view the tunnel URL anytime with:
+
+```bash
+docker logs sennara-cf | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'
+```
+
+**Permanent domain:** sign up for a free Cloudflare account, add your own domain (or use a free subdomain), create a named Cloudflare Tunnel, and run `cloudflared` with the tunnel token.
 
 ### 9. Stop everything
 
