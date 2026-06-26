@@ -2,6 +2,17 @@
 
 A cross-platform mobile application and scalable backend for Egyptian anglers, inspired by Fishbrain but rebuilt for local waters, local species, local payment methods, and Egyptian Arabic first.
 
+## Current public demo
+
+The stack is currently exposed through a free **localtunnel** at:
+
+**`https://sennara.loca.lt/`**
+
+- Tap **“الدخول كزائر”** to log in with a demo account.
+- Use **“+ صيد جديد”** to add a catch with a fish photo and GPS location.
+
+> This is a temporary tunnel URL. For a permanent domain you will need a Cloudflare Tunnel (or similar) plus your own domain.
+
 ## Tech Stack
 
 | Layer | Choice | Rationale |
@@ -170,11 +181,15 @@ cp backend/.env.example backend/.env
 #   JWT_REFRESH_SECRET=<another long random string>
 ```
 
-`docker-compose.yml` automatically loads `backend/.env` for the API container.
+`docker-compose.yml` automatically loads `backend/.env` for the API container.  
+`backend/.env` is already in `.gitignore` — **never commit it**.
 
-### 4. Start the full stack
+### 4. Start the full stack in production mode
 
 ```bash
+# Disable the development override (hot reload / exposed DB ports)
+mv docker-compose.override.yml docker-compose.override.yml.dev
+
 # Build images and start services
 docker compose up -d
 
@@ -198,6 +213,7 @@ You should see a JSON response from each.
 
 | Service | URL | Notes |
 |---------|-----|-------|
+| Sennara dashboard | http://localhost/ | Static dashboard served by Nginx |
 | Sennara API | http://localhost/api/v1 | Behind Nginx |
 | Health check | http://localhost/health | Quick liveness probe |
 | MinIO Console | http://localhost:9001 | Object storage admin (`minioadmin` / `minioadmin`) |
@@ -226,7 +242,25 @@ flutter run -d ios          # macOS + Xcode only
 
 Native plugins (camera, GPS, maps) do not work in the browser; use an Android/iOS device for full functionality.
 
-### 8. Stop everything
+### 8. Expose the stack publicly (optional)
+
+**Quick and free (temporary URL):** use localtunnel to get a public HTTPS URL.
+
+```bash
+docker run -d --name sennara-lt --network sennara_sennara-network \
+  --restart unless-stopped node:20-alpine \
+  sh -c "npm install -g localtunnel && lt --port 80 --local-host nginx --subdomain sennara"
+```
+
+Then update `S3_PUBLIC_ENDPOINT` in `docker-compose.yml` to the same public URL and rebuild the API container:
+
+```bash
+docker compose up -d --build api
+```
+
+**Permanent domain:** sign up for a free Cloudflare account, register a free domain (e.g. `sennara.tk` via Freenom), add it to Cloudflare, create a Cloudflare Tunnel, and run `cloudflared` with the tunnel token.
+
+### 9. Stop everything
 
 ```bash
 docker compose down

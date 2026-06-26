@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>سنارة — Sennara</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="screen active">
+      <div class="auth-container">
+        <div class="logo">
+          <div class="logo-icon">🎣</div>
+          <h1>سنارة</h1>
+          <p class="tagline">مجتمع الصيادين المصريين</p>
+        </div>
+        <div class="auth-form">
+          <p class="auth-desc">أدخل رقم هاتفك المصري للدخول</p>
+          <div class="input-group">
+            <span class="input-prefix">+20</span>
+            <input type="tel" id="phone-input" placeholder="10XXXXXXXX" maxlength="10">
+          </div>
+          <button id="btn-request-otp" class="btn-primary">إرسال رمز التحقق</button>
+          <div id="otp-section" class="hidden">
+            <p class="auth-desc">أدخل رمز التحقق (تجريبي: 123456)</p>
+            <input type="text" id="otp-input" placeholder="رمز التحقق" maxlength="6">
+            <button id="btn-verify-otp" class="btn-primary">تحقق</button>
+          </div>
+          <div class="divider">
+            <span>أو</span>
+          </div>
+          <button id="btn-guest" class="btn-secondary">الدخول كزائر</button>
+          <p class="demo-hint">💡 نسخة تجريبية — انقر "الدخول كزائر" للبدء</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-screen" class="screen">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-content">
+          <h2 id="screen-title">الرئيسية</h2>
+          <div class="header-actions">
+            <button id="btn-notifications" class="icon-btn">🔔</button>
+            <button id="btn-profile" class="icon-btn">👤</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <main class="content" id="content">
+        <!-- Feed Tab -->
+        <div id="tab-feed" class="tab active">
+          <div class="feed-tabs">
+            <button class="feed-tab active" data-feed="nearby">بالقرب</button>
+            <button class="feed-tab" data-feed="following">المتابَعون</button>
+            <button class="feed-tab" data-feed="trending">الرائج</button>
+          </div>
+          <div class="catches-list" id="catches-list"></div>
+        </div>
+
+        <!-- Map Tab -->
+        <div id="tab-map" class="tab">
+          <div class="map-placeholder" id="map-view">
+            <div class="map-info">
+              <h3>🗺️ خريطة المواقع</h3>
+              <p>عرض نقاط الصيد على الخريطة</p>
+              <div class="waypoints-list" id="waypoints-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logbook Tab -->
+        <div id="tab-logbook" class="tab">
+          <button id="btn-add-catch" class="btn-primary fab">+ صيد جديد</button>
+          <div class="catches-list" id="my-catches-list"></div>
+        </div>
+
+        <!-- Weather Tab -->
+        <div id="tab-weather" class="tab">
+          <div class="weather-card" id="weather-current"></div>
+          <div class="weather-forecast" id="weather-forecast"></div>
+        </div>
+
+        <!-- Species Tab -->
+        <div id="tab-species" class="tab">
+          <div class="search-bar">
+            <input type="text" id="species-search" placeholder="🔍 ابحث عن نوع سمك...">
+          </div>
+          <div class="species-list" id="species-list"></div>
+        </div>
+
+        <!-- Profile Tab -->
+        <div id="tab-profile" class="tab">
+          <div class="profile-card" id="profile-card"></div>
+          <div class="stats-grid" id="stats-grid"></div>
+          <div class="premium-card" id="premium-card"></div>
+        </div>
+      </main>
+
+      <!-- Bottom Navigation -->
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-tab="feed">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">الرئيسية</span>
+        </button>
+        <button class="nav-item" data-tab="map">
+          <span class="nav-icon">🗺️</span>
+          <span class="nav-label">الخريطة</span>
+        </button>
+        <button class="nav-item" data-tab="logbook">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">سجل الصيد</span>
+        </button>
+        <button class="nav-item" data-tab="weather">
+          <span class="nav-icon">🌤️</span>
+          <span class="nav-label">الطقس</span>
+        </button>
+        <button class="nav-item" data-tab="species">
+          <span class="nav-icon">🐟</span>
+          <span class="nav-label">الأنواع</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Add Catch Modal -->
+    <div id="modal-add-catch" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>تسجيل صيد جديد</h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>نوع السمكة</label>
+            <select id="catch-species"></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>الوزن (كجم)</label>
+              <input type="number" id="catch-weight" step="0.1" placeholder="0.0">
+            </div>
+            <div class="form-group">
+              <label>الطول (سم)</label>
+              <input type="number" id="catch-length" step="0.1" placeholder="0.0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>الموقع</label>
+            <div class="form-row">
+              <input type="number" id="catch-lat" step="0.0001" placeholder="خط العرض">
+              <input type="number" id="catch-lng" step="0.0001" placeholder="خط الطول">
+            </div>
+            <button type="button" id="btn-use-location" class="btn-secondary btn-block" style="margin-top:8px;font-size:13px;">📍 استخدام موقعي الحالي</button>
+          </div>
+          <div class="form-group">
+            <label>صورة السمكة</label>
+            <input type="file" id="catch-photo" accept="image/*">
+            <img id="catch-photo-preview" class="hidden" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px;">
+          </div>
+          <div class="form-group">
+            <label>ملاحظات</label>
+            <textarea id="catch-note" rows="2" placeholder="ملاحظات عن الصيد..."></textarea>
+          </div>
+          <button id="btn-save-catch" class="btn-primary btn-block">حفظ الصيد</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Catch Detail Modal -->
+    <div id="modal-catch-detail" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>تفاصيل الصيد</h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="catch-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- Species Detail Modal -->
+    <div id="modal-species-detail" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3 id="species-detail-title"></h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="species-detail-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

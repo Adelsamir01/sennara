@@ -12,7 +12,7 @@ const config: DbConfig = {
   connectionString: process.env.DATABASE_URL ||
     'postgresql://postgres:postgres@localhost:5432/sennara_dev',
   ssl:
-    process.env.NODE_ENV === 'production'
+    process.env.DATABASE_SSL === 'true'
       ? { rejectUnauthorized: false }
       : undefined,
   max: parseInt(process.env.DB_POOL_MAX || '20', 10),

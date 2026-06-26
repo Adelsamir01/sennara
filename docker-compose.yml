@@ -13,6 +13,8 @@ services:
       - "80:80"
     depends_on:
       - api
+    volumes:
+      - ./dashboard:/usr/share/nginx/html:ro
     networks:
       - sennara-network
     restart: unless-stopped
@@ -38,7 +40,7 @@ services:
       DB_IDLE_TIMEOUT_MS: 30000
       DB_CONNECTION_TIMEOUT_MS: 5000
       S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_PUBLIC_ENDPOINT: https://sennara.loca.lt
       S3_REGION: us-east-1
       S3_BUCKET: sennara-uploads
       S3_ACCESS_KEY_ID: minioadmin
@@ -82,6 +84,11 @@ services:
     networks:
       - sennara-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f worker-entrypoint.js || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # ---------------------------------------------------------------------------
   # Database Migrations
