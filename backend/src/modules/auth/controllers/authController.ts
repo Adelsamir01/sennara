@@ -1,15 +1,24 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import { env } from '../../../config/env';
+import { logger } from '../../../config/logger';
 import { AppError } from '../../../shared/errors/AppError';
 import { t } from '../../../shared/i18n';
 import * as userRepo from '../repositories/userRepository';
 import { generateOtp, storeOtp, verifyOtp, getRecentOtpCount } from '../services/otpService';
-import { sendOtpSms } from '../services/smsService';
-import { generateTokens, verifyRefreshToken } from '../services/jwtService';
+import { sendOtp } from '../services/otpSender';
+import {
+  generateTokens,
+  rotateRefreshToken,
+  revokeAccessToken,
+  revokeRefreshToken,
+} from '../services/jwtService';
 import {
   phoneRequestSchema,
   otpVerifySchema,
   refreshTokenSchema,
   socialLoginSchema,
+  logoutSchema,
 } from '../dto/authSchemas';
 
 function publicUser(user: userRepo.UserRow) {
@@ -26,6 +35,16 @@ function publicUser(user: userRepo.UserRow) {
   };
 }
 
+function normalizePhoneNumber(phoneNumber: string): string {
+  let cleaned = phoneNumber.replace(/\s|-/g, '');
+  if (cleaned.startsWith('+20')) {
+    cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.startsWith('0020')) {
+    cleaned = '0' + cleaned.slice(4);
+  }
+  return cleaned;
+}
+
 export async function requestPhoneOtp(
   req: Request,
   res: Response,
@@ -34,24 +53,32 @@ export async function requestPhoneOtp(
   try {
     const dto = phoneRequestSchema.parse(req.body);
     const locale = (req.headers['x-locale'] as 'ar' | 'en') || 'ar';
+    const phoneNumber = normalizePhoneNumber(dto.phoneNumber);
 
-    const recentCount = await getRecentOtpCount(dto.phoneNumber);
+    const recentCount = await getRecentOtpCount(phoneNumber);
     if (recentCount >= 5) {
       next(new AppError('rateLimited', 429, t(locale, 'errors.generic')));
       return;
     }
 
     const otp = generateOtp();
-    await storeOtp(dto.phoneNumber, otp, 'smsmisr');
-    const smsResult = await sendOtpSms(dto.phoneNumber, otp, 'smsmisr');
+    const otpResult = await sendOtp(phoneNumber, otp);
 
-    // In dev, return OTP in response body for easier testing
-    const includeOtp = process.env.NODE_ENV !== 'production' ? { otp } : {};
+    if (otpResult.success) {
+      await storeOtp(phoneNumber, otp, otpResult.gateway);
+      logger.info('OTP sent', { phone: phoneNumber, gateway: otpResult.gateway });
+    } else {
+      logger.warn('OTP send failed', { phone: phoneNumber, error: otpResult.error });
+    }
+
+    const includeOtp = env.OTP_TEST_MODE ? { otp } : {};
 
     res.status(200).json({
-      success: smsResult.success,
-      gateway: smsResult.gateway,
-      message: t(locale, 'auth.otpSent', { phone: dto.phoneNumber }),
+      success: otpResult.success,
+      gateway: otpResult.gateway,
+      message: otpResult.success
+        ? t(locale, 'auth.otpSent', { phone: phoneNumber })
+        : t(locale, 'errors.generic'),
       ...includeOtp,
     });
   } catch (err) {
@@ -67,29 +94,27 @@ export async function verifyPhoneOtp(
   try {
     const dto = otpVerifySchema.parse(req.body);
     const locale = (req.headers['x-locale'] as 'ar' | 'en') || 'ar';
+    const phoneNumber = normalizePhoneNumber(dto.phoneNumber);
 
-    const valid = await verifyOtp(dto.phoneNumber, dto.otp);
+    const valid = await verifyOtp(phoneNumber, dto.otp);
     if (!valid) {
       next(new AppError('unauthorized', 401, t(locale, 'errors.unauthorized')));
       return;
     }
 
-    let user = await userRepo.findUserByPhone(dto.phoneNumber);
+    let user = await userRepo.findUserByPhone(phoneNumber);
     const isNewUser = !user;
 
     if (!user) {
       user = await userRepo.createUser({
-        phoneNumber: dto.phoneNumber,
+        phoneNumber,
         authProvider: 'phone_otp',
         locale,
       });
     }
 
-    const tokens = generateTokens({
-      userId: user.id,
-      phoneNumber: user.phone_number,
-      tier: user.subscription_tier,
-    });
+    await userRepo.updateUser(user.id, { last_seen_at: new Date() });
+    const tokens = generateTokens(user);
 
     res.status(200).json({
       user: publicUser(user),
@@ -127,11 +152,8 @@ export async function socialLogin(
       });
     }
 
-    const tokens = generateTokens({
-      userId: user.id,
-      phoneNumber: user.phone_number,
-      tier: user.subscription_tier,
-    });
+    await userRepo.updateUser(user.id, { last_seen_at: new Date() });
+    const tokens = generateTokens(user);
 
     res.status(200).json({
       user: publicUser(user),
@@ -150,7 +172,7 @@ export async function refreshAccessToken(
 ): Promise<void> {
   try {
     const dto = refreshTokenSchema.parse(req.body);
-    const { userId } = verifyRefreshToken(dto.refreshToken);
+    const { userId } = await rotateRefreshToken(dto.refreshToken);
     const user = await userRepo.findUserById(userId);
 
     if (!user) {
@@ -158,15 +180,29 @@ export async function refreshAccessToken(
       return;
     }
 
-    const tokens = generateTokens({
-      userId: user.id,
-      phoneNumber: user.phone_number,
-      tier: user.subscription_tier,
-    });
-
+    const tokens = generateTokens(user);
     res.status(200).json({ tokens });
   } catch (err) {
-    next(err);
+    next(new AppError('unauthorized', 401, 'Invalid or expired refresh token'));
+  }
+}
+
+export async function logout(req: Request, res: Response): Promise<void> {
+  try {
+    const dto = logoutSchema.parse(req.body);
+    const authHeader = req.headers.authorization;
+    const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+
+    await Promise.all([
+      accessToken ? revokeAccessToken(accessToken) : Promise.resolve(),
+      revokeRefreshToken(dto.refreshToken),
+    ]);
+
+    res.status(200).json({ success: true, message: 'Logged out' });
+  } catch (err) {
+    logger.warn('Logout error', { err });
+    // Always return success to avoid leaking token validity
+    res.status(200).json({ success: true, message: 'Logged out' });
   }
 }
 
@@ -185,6 +221,5 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
 }
 
 function hashIdToken(token: string): string {
-  const crypto = require('crypto');
   return crypto.createHash('sha256').update(token).digest('hex').slice(0, 32);
 }

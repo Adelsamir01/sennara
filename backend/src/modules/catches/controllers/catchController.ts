@@ -22,15 +22,18 @@ function publicCatch(
   const isOwner = row.user_id === viewerId;
   const coords = catchRepo.parseWktPoint(row.exact_location);
 
-  // Exact location: owner always sees exact; others see exact only if premium + public.
+  // Exact location: owner always sees exact.
+  // Others: public -> approximate unless premium; friends_only/secret -> no exact location.
   let location = coords;
-  if (!isOwner && row.privacy === 'public' && viewerTier !== 'premium') {
-    location = coords
-      ? {
-          latitude: Math.round(coords.latitude * 100) / 100,
-          longitude: Math.round(coords.longitude * 100) / 100,
-        }
-      : null;
+  if (!isOwner && coords) {
+    if (row.privacy === 'secret' || row.privacy === 'friends_only') {
+      location = null;
+    } else if (row.privacy === 'public' && viewerTier !== 'premium') {
+      location = {
+        latitude: Math.round(coords.latitude * 100) / 100,
+        longitude: Math.round(coords.longitude * 100) / 100,
+      };
+    }
   }
 
   return {

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../../shared/errors/AppError';
 import { t } from '../../../shared/i18n';
-import { requirePremium } from '../../auth/middleware/authMiddleware';
+import { requirePremium } from '../../auth/middleware/requirePremium';
 import { currentWeatherSchema, forecastSchema } from '../dto/weatherSchemas';
 import { getCurrentWeather, getForecast } from '../services/weatherService';
 

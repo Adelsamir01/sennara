@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { env } from '../../../config/env';
 import { query } from '../../../config/database';
 import { cacheGet, cacheSet, cacheDelete } from '../../../config/redis';
 
@@ -6,9 +7,7 @@ const OTP_TTL_SECONDS = 5 * 60; // 5 minutes
 const OTP_MAX_ATTEMPTS = 5;
 
 function hashOtp(otp: string): string {
-  return crypto.createHmac('sha256', process.env.JWT_ACCESS_SECRET || 'fallback-secret')
-    .update(otp)
-    .digest('hex');
+  return crypto.createHmac('sha256', env.OTP_SECRET).update(otp).digest('hex');
 }
 
 export function generateOtp(): string {
@@ -67,4 +66,3 @@ export async function getRecentOtpCount(phoneNumber: string): Promise<number> {
   );
   return parseInt(result.rows[0].count, 10);
 }
-

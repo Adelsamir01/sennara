@@ -1,10 +1,12 @@
-import 'dotenv/config';
+import { env, validateEnv } from './config/env';
+validateEnv(); // load & validate env before anything else
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
+import { logger } from './config/logger';
 import { closeDb } from './config/database';
 import { closeRedis } from './config/redis';
 import { AppError } from './shared/errors/AppError';
@@ -19,8 +21,8 @@ import speciesRoutes from './modules/species/routes/speciesRoutes';
 import uploadRoutes from './modules/uploads/routes/uploadRoutes';
 
 export const app: Application = express();
-const PORT = process.env.PORT || 4000;
-const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+const PORT = env.PORT;
+const API_PREFIX = env.API_PREFIX;
 
 app.use(helmet());
 app.use(cors());
@@ -41,8 +43,31 @@ app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', service: 'sennara-api' });
 });
 
-// Prometheus metrics
-app.get('/metrics', metricsHandler);
+// Prometheus metrics (protected when METRICS_BASIC_AUTH_PASSWORD is set)
+app.get('/metrics', metricsAuth, metricsHandler);
+
+function metricsAuth(req: Request, res: Response, next: NextFunction): void {
+  const password = env.METRICS_BASIC_AUTH_PASSWORD;
+  if (!password) {
+    return next();
+  }
+
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="metrics"');
+    res.status(401).json({ error: 'unauthorized', message: 'Metrics require basic auth' });
+    return;
+  }
+
+  const provided = Buffer.from(auth.slice(6), 'base64').toString('utf8').split(':')[1];
+  if (provided !== password) {
+    res.set('WWW-Authenticate', 'Basic realm="metrics"');
+    res.status(401).json({ error: 'unauthorized', message: 'Invalid credentials' });
+    return;
+  }
+
+  next();
+}
 
 // Root
 app.get('/', (_req: Request, res: Response) => {
@@ -82,27 +107,27 @@ app.use((err: Error | AppError | ZodError, _req: Request, res: Response, _next: 
     return;
   }
 
-  console.error(err);
+  logger.error('Unhandled error', { err });
   res.status(500).json({
     error: 'internal',
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    message: env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
   });
 });
 
 // Only start HTTP server when this file is run directly (not imported by tests)
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    console.log(`Sennara API listening on port ${PORT}`);
+    logger.info(`Sennara API listening on port ${PORT}`);
   });
 
-  async function gracefulShutdown(signal: string) {
-    console.log(`${signal} received. Shutting down gracefully...`);
+  const gracefulShutdown = async (signal: string) => {
+    logger.info(`${signal} received. Shutting down gracefully...`);
     server.close(async () => {
       await closeRedis();
       await closeDb();
       process.exit(0);
     });
-  }
+  };
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));

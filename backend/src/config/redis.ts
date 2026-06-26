@@ -1,10 +1,11 @@
 import Redis from 'ioredis';
+import { env } from './env';
 
 let redisInstance: Redis | null = null;
 
 export function getRedis(): Redis {
   if (!redisInstance) {
-    redisInstance = new Redis(process.env.REDIS_URL || 'redis://localhost:6379/0');
+    redisInstance = new Redis(env.REDIS_URL);
   }
   return redisInstance;
 }
@@ -40,5 +41,46 @@ export async function closeRedis(): Promise<void> {
   if (redisInstance) {
     await redisInstance.quit();
     redisInstance = null;
+  }
+}
+
+// Token deny-list helpers (used for logout / compromised tokens)
+export function deniedTokenKey(jti: string): string {
+  return `deny:${jti}`;
+}
+
+export async function denyToken(jti: string, ttlSeconds: number): Promise<void> {
+  await cacheSet(deniedTokenKey(jti), '1', ttlSeconds);
+}
+
+export async function isTokenDenied(jti: string): Promise<boolean> {
+  const denied = await getRedis().get(deniedTokenKey(jti));
+  return denied === '1';
+}
+
+// Refresh-token rotation helpers
+export function refreshTokenKey(jti: string): string {
+  return `refresh:${jti}`;
+}
+
+export async function storeRefreshToken(
+  jti: string,
+  userId: string,
+  ttlSeconds: number
+): Promise<void> {
+  await cacheSet(refreshTokenKey(jti), { userId }, ttlSeconds);
+}
+
+export async function consumeRefreshToken(jti: string): Promise<string | null> {
+  const redis = getRedis();
+  const key = refreshTokenKey(jti);
+  const value = await redis.get(key);
+  if (!value) return null;
+  await redis.del(key);
+  try {
+    const parsed = JSON.parse(value) as { userId: string };
+    return parsed.userId;
+  } catch {
+    return null;
   }
 }

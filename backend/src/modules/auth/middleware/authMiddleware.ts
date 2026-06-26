@@ -1,16 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyAccessToken, TokenPayload } from '../services/jwtService';
+import { verifyAccessTokenWithDenyList, TokenPayload } from '../services/jwtService';
 import { AppError } from '../../../shared/errors/AppError';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: TokenPayload;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: TokenPayload;
   }
 }
 
-export function authenticate(req: Request, _res: Response, next: NextFunction): void {
+export async function authenticate(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     next(new AppError('unauthorized', 401, 'Missing or invalid authorization header'));
@@ -19,18 +21,10 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 
   const token = authHeader.split(' ')[1];
   try {
-    const payload = verifyAccessToken(token);
+    const payload = await verifyAccessTokenWithDenyList(token);
     req.user = payload;
     next();
   } catch {
     next(new AppError('unauthorized', 401, 'Invalid or expired token'));
   }
-}
-
-export function requirePremium(req: Request, _res: Response, next: NextFunction): void {
-  if (req.user?.tier !== 'premium') {
-    next(new AppError('forbidden', 403, 'Premium subscription required'));
-    return;
-  }
-  next();
 }

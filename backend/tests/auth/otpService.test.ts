@@ -23,7 +23,7 @@ describe('OTP Service', () => {
     const phone = '01099999999';
     const otp = generateOtp();
 
-    await storeOtp(phone, otp, 'smsmisr');
+    await storeOtp(phone, otp, 'whatsapp');
     const valid = await verifyOtp(phone, otp);
     expect(valid).toBe(true);
 

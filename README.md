@@ -4,14 +4,16 @@ A cross-platform mobile application and scalable backend for Egyptian anglers, i
 
 ## Current public demo
 
-The stack is currently exposed through a free **Cloudflare Quick Tunnel** at:
+The stack is currently exposed through a free **Cloudflare Quick Tunnel**. The URL changes when the tunnel container restarts; check it with:
 
-**`https://bunny-ampland-click-ryan.trycloudflare.com/`**
+```bash
+docker logs sennara-cf | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'
+```
 
-- Tap **“الدخول كزائر”** to log in with a demo account.
+- Sign in with your phone number to receive a WhatsApp OTP.
 - Use **“+ صيد جديد”** to add a catch with a fish photo and GPS location.
 
-> Quick Tunnel URLs are temporary. If the tunnel container restarts, the URL changes. For a stable domain you need a Cloudflare account plus your own domain (or Cloudflare's free subdomain on a zone).
+> Quick Tunnel URLs are temporary. For a stable domain you need a Cloudflare account plus your own domain.
 
 ## Tech Stack
 
@@ -23,7 +25,7 @@ The stack is currently exposed through a free **Cloudflare Quick Tunnel** at:
 | Cache | **Redis** | Feed caching, weather TTL, OTP rate limiting, offline queue lock |
 | Search | **PostgreSQL full-text + trigram** | Species/local-name search without extra infra at early stage |
 | Maps | **Mapbox** | Offline tile packs, marine style layers |
-| Auth | **Phone OTP** (SMSMISR/Twilio) + Google/Apple Sign-In | Mobile-first Egypt identity |
+| Auth | **Phone OTP** (WhatsApp Cloud API + Twilio fallback) + Google/Apple Sign-In | Mobile-first Egypt identity, no SMSMISR dependency |
 | Payments | **Paymob / PayTabs / InstaPay** adapters + Vodafone Cash, Fawry, card | Local payment reality |
 | Object Storage | **MinIO** | S3-compatible, self-hosted media storage |
 | Monitoring | **Prometheus + Grafana** | Metrics, dashboards, alerting |
@@ -67,10 +69,11 @@ sennara/
 All endpoints are prefixed with `/api/v1`.
 
 ### Auth
-- `POST /auth/otp/request` — send OTP to Egyptian phone number
+- `POST /auth/otp/request` — send WhatsApp OTP (Twilio SMS fallback)
 - `POST /auth/otp/verify` — verify OTP and receive JWT pair
 - `POST /auth/social` — Google/Apple sign-in
-- `POST /auth/refresh` — refresh access token
+- `POST /auth/refresh` — rotate refresh token
+- `POST /auth/logout` — revoke current access & refresh tokens
 - `GET /auth/me` — current user
 
 ### Catches
@@ -184,6 +187,12 @@ cp backend/.env.example backend/.env
 `docker-compose.yml` automatically loads `backend/.env` for the API container.  
 `backend/.env` is already in `.gitignore` — **never commit it**.
 
+You will also need to set:
+- `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — long random strings
+- `OTP_SECRET` — long random string for hashing OTP codes (`openssl rand -hex 32`)
+- `WHATSAPP_API_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` — for WhatsApp OTP (see WhatsApp setup below)
+- `S3_PUBLIC_ENDPOINT` — public URL for uploads (e.g. your Cloudflare tunnel URL)
+
 ### 4. Start the full stack in production mode
 
 ```bash
@@ -252,7 +261,7 @@ docker run -d --name sennara-cf --network sennara_sennara-network \
   tunnel --url http://nginx:80
 ```
 
-Then copy the printed `*.trycloudflare.com` URL, update `S3_PUBLIC_ENDPOINT` in `docker-compose.yml` to match, and rebuild the API container:
+Then copy the printed `*.trycloudflare.com` URL, set `S3_PUBLIC_ENDPOINT` in `backend/.env` to match, and restart the API:
 
 ```bash
 docker compose up -d --build api
@@ -265,6 +274,23 @@ docker logs sennara-cf | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'
 ```
 
 **Permanent domain:** sign up for a free Cloudflare account, add your own domain (or use a free subdomain), create a named Cloudflare Tunnel, and run `cloudflared` with the tunnel token.
+
+### WhatsApp OTP setup
+
+1. Go to [Meta for Developers](https://developers.facebook.com/) and create an app with the **WhatsApp** product.
+2. Add a WhatsApp Business phone number and copy the **Phone Number ID**.
+3. Create an **Authentication** or **Utility** message template with one body parameter for the OTP code, e.g.:
+   ```
+   رمز التحقق الخاص بك هو: {{1}}
+   Your verification code is: {{1}}
+   ```
+   Name it `sennara_otp` (or set `WHATSAPP_OTP_TEMPLATE_NAME`).
+4. Generate a permanent access token and set:
+   - `WHATSAPP_API_TOKEN`
+   - `WHATSAPP_PHONE_NUMBER_ID`
+   - `WHATSAPP_OTP_TEMPLATE_NAME=sennara_otp`
+   - `WHATSAPP_OTP_LANGUAGE=ar`
+5. Until Meta approves your template, keep `TWILIO_*` credentials configured as an SMS fallback.
 
 ### 9. Stop everything
 
@@ -304,7 +330,9 @@ docker compose -f docker-compose.yml up -d
 ```bash
 # 1. Set secrets
 cp backend/.env.example backend/.env
-# Edit backend/.env — at minimum set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET
+# Edit backend/.env — at minimum set:
+#   JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, OTP_SECRET
+#   WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, S3_PUBLIC_ENDPOINT
 
 # 2. Build and start the full stack
 docker compose up -d
@@ -362,13 +390,16 @@ Backups are stored in the `sennara_backups` Docker volume.
 
 ### Production Checklist
 
-- [ ] Change `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` to long random strings
+- [ ] Change `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `OTP_SECRET` to long random strings
+- [ ] Configure WhatsApp Cloud API credentials and approve your OTP template
+- [ ] Set `S3_PUBLIC_ENDPOINT` to your public domain
+- [ ] Set `METRICS_BASIC_AUTH_PASSWORD` to protect `/metrics`
 - [ ] Change MinIO `MINIO_ROOT_PASSWORD`
 - [ ] Change Grafana `GF_SECURITY_ADMIN_PASSWORD`
 - [ ] Add TLS/HTTPS (Let’s Encrypt or self-signed cert in Nginx)
 - [ ] Restrict host ports: only Nginx (80/443) should be exposed externally
 - [ ] Configure payment provider credentials
-- [ ] Configure SMS provider credentials
+- [ ] Configure Twilio credentials as an SMS fallback (optional)
 - [ ] Tune `DB_POOL_MAX` based on PostgreSQL `max_connections`
 - [ ] Set up off-site backup replication
 

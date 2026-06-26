@@ -1,4 +1,6 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { env } from './env';
+import { logger } from './logger';
 
 interface DbConfig {
   connectionString: string;
@@ -9,15 +11,11 @@ interface DbConfig {
 }
 
 const config: DbConfig = {
-  connectionString: process.env.DATABASE_URL ||
-    'postgresql://postgres:postgres@localhost:5432/sennara_dev',
-  ssl:
-    process.env.DATABASE_SSL === 'true'
-      ? { rejectUnauthorized: false }
-      : undefined,
-  max: parseInt(process.env.DB_POOL_MAX || '20', 10),
-  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
-  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '5000', 10),
+  connectionString: env.DATABASE_URL,
+  ssl: env.DATABASE_SSL ? { rejectUnauthorized: false } : undefined,
+  max: env.DB_POOL_MAX,
+  idleTimeoutMillis: env.DB_IDLE_TIMEOUT_MS,
+  connectionTimeoutMillis: env.DB_CONNECTION_TIMEOUT_MS,
 };
 
 let poolInstance: Pool | null = null;
@@ -26,7 +24,7 @@ export function getPool(): Pool {
   if (!poolInstance) {
     poolInstance = new Pool(config);
     poolInstance.on('error', (err) => {
-      console.error('Unexpected PostgreSQL pool error', err);
+      logger.error('Unexpected PostgreSQL pool error', { err });
     });
   }
   return poolInstance;
@@ -43,9 +41,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   return getPool().query<T>(text, params);
 }
 
-export async function transaction<T>(
-  fn: (client: PoolClient) => Promise<T>
-): Promise<T> {
+export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');

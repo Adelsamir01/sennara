@@ -17,11 +17,7 @@ const state = {
 // ─────────────────── API ───────────────────
 async function api(method, path, body = null, auth = true) {
   const url = `${API_BASE}${path}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    // Bypass the localtunnel anti-abuse warning page for API calls
-    'Bypass-Tunnel-Reminder': '1',
-  };
+  const headers = { 'Content-Type': 'application/json' };
   if (auth && state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
@@ -48,23 +44,6 @@ function normalizeUser(apiUser) {
     email: apiUser.email,
     locale: apiUser.locale || 'ar',
   };
-}
-
-async function loginAsGuest() {
-  // Demo: log in with a pre-created test user so the dashboard works
-  // against the real production backend without SMS credentials.
-  const accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhOTEzZTFmNC0xNWIzLTQ1OWMtOTBkNi0yMzVjNTUxMGMyZGQiLCJwaG9uZU51bWJlciI6IjAxMDAwMDAwMDAwIiwidGllciI6InByZW1pdW0iLCJpYXQiOjE3ODI0OTg2MTEsImV4cCI6MTc4NTA5MDYxMX0.7qACujiR1UP0cQSpT1NG5fMAFrCmWdTMr_03Xq7v6TY';
-  const refreshToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhOTEzZTFmNC0xNWIzLTQ1OWMtOTBkNi0yMzVjNTUxMGMyZGQiLCJpYXQiOjE3ODI0OTg2MTEsImV4cCI6MTc4NTA5MDYxMX0.6CI53cAxQ-BgIWj0MO1QmZseuHsL8wqgmEaxjDBvmSQ';
-  state.accessToken = accessToken;
-  localStorage.setItem('sennara_refresh', refreshToken);
-  try {
-    const { user } = await api('GET', '/auth/me');
-    state.user = normalizeUser(user);
-  } catch (e) {
-    console.error('Guest auth check failed', e);
-  }
-  showMainScreen();
-  loadAllData();
 }
 
 async function requestOTP() {
@@ -623,7 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Auth
   document.getElementById('btn-request-otp')?.addEventListener('click', requestOTP);
   document.getElementById('btn-verify-otp')?.addEventListener('click', verifyOTP);
-  document.getElementById('btn-guest')?.addEventListener('click', loginAsGuest);
   
   // Navigation
   document.querySelectorAll('.nav-item').forEach(btn => {

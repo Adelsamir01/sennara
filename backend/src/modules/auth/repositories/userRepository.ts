@@ -82,7 +82,7 @@ export async function createUser(input: CreateUserInput): Promise<UserRow> {
 
 export async function updateUser(
   userId: string,
-  updates: Partial<Pick<UserRow, 'display_name' | 'avatar_url' | 'locale' | 'default_privacy' | 'subscription_tier' | 'subscription_expires_at'>>
+  updates: Partial<Pick<UserRow, 'display_name' | 'avatar_url' | 'locale' | 'default_privacy' | 'subscription_tier' | 'subscription_expires_at' | 'last_seen_at'>>
 ): Promise<UserRow | null> {
   const fields: string[] = [];
   const values: unknown[] = [];

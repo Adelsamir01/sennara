@@ -1,8 +1,8 @@
 import request from 'supertest';
 import { app, initTestEnvironment, resetTestEnvironment, teardownTestEnvironment } from '../utils/testApp';
 
-jest.mock('../../src/modules/auth/services/smsService', () => ({
-  sendOtpSms: jest.fn().mockResolvedValue({ success: true, gateway: 'smsmisr' }),
+jest.mock('../../src/modules/auth/services/otpSender', () => ({
+  sendOtp: jest.fn().mockResolvedValue({ success: true, gateway: 'whatsapp' }),
 }));
 
 describe('Auth Module', () => {
@@ -106,6 +106,32 @@ describe('Auth Module', () => {
         .expect(200);
 
       expect(response.body.tokens.accessToken).toBeDefined();
+    });
+  });
+
+  describe('POST /api/v1/auth/logout', () => {
+    it('revokes tokens and rejects subsequent me calls', async () => {
+      const otpResponse = await request(app)
+        .post('/api/v1/auth/otp/request')
+        .send({ phoneNumber: '01012345678' });
+
+      const verifyResponse = await request(app)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phoneNumber: '01012345678', otp: otpResponse.body.otp });
+
+      const accessToken = verifyResponse.body.tokens.accessToken;
+      const refreshToken = verifyResponse.body.tokens.refreshToken;
+
+      await request(app)
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refreshToken })
+        .expect(200);
+
+      await request(app)
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(401);
     });
   });
 
