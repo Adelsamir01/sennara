@@ -17,7 +17,11 @@ const state = {
 // ─────────────────── API ───────────────────
 async function api(method, path, body = null, auth = true) {
   const url = `${API_BASE}${path}`;
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {
+    'Content-Type': 'application/json',
+    // Bypass the localtunnel anti-abuse warning page for API calls
+    'Bypass-Tunnel-Reminder': '1',
+  };
   if (auth && state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);

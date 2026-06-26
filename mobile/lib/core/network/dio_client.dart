@@ -11,7 +11,12 @@ class DioClient {
         baseUrl: ApiConstants.baseUrl,
         connectTimeout: ApiConstants.connectTimeout,
         receiveTimeout: ApiConstants.receiveTimeout,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          // Bypass the localtunnel anti-abuse warning page for API calls
+          'Bypass-Tunnel-Reminder': '1',
+          'User-Agent': 'SennaraMobile/1.0',
+        },
       ),
     );
 
