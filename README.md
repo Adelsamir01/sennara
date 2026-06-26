@@ -142,6 +142,121 @@ flutter pub get
 flutter run
 ```
 
+## Run on a new Windows + WSL2 machine
+
+### 1. Prerequisites
+
+- Windows 10/11 with WSL2 installed and a Linux distro (Ubuntu is recommended).
+- Docker Desktop installed and configured to use the **WSL2 backend** for your distro.
+- Git installed inside WSL (`sudo apt update && sudo apt install git`).
+- (Optional) Flutter installed inside WSL or Windows if you want to run the mobile app.
+
+### 2. Clone the repo
+
+Always clone inside the WSL filesystem (`/home/<user>`) instead of `/mnt/c/...`; Docker bind mounts are much faster there.
+
+```bash
+cd ~
+git clone https://github.com/Adelsamir01/sennara.git
+cd sennara
+```
+
+### 3. Set environment variables
+
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env and at least set:
+#   JWT_ACCESS_SECRET=<long random string>
+#   JWT_REFRESH_SECRET=<another long random string>
+```
+
+`docker-compose.yml` automatically loads `backend/.env` for the API container.
+
+### 4. Start the full stack
+
+```bash
+# Build images and start services
+docker compose up -d
+
+# Run database migrations and seed species
+docker compose --profile migrate run --rm migrate
+
+# Create the MinIO bucket used for photo/video uploads
+docker compose --profile setup run --rm createbuckets
+```
+
+Wait ~30 seconds for Postgres and Redis health checks, then verify:
+
+```bash
+curl http://localhost/health
+curl http://localhost/api/v1/species
+```
+
+You should see a JSON response from each.
+
+### 5. Available services on the new machine
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| Sennara API | http://localhost/api/v1 | Behind Nginx |
+| Health check | http://localhost/health | Quick liveness probe |
+| MinIO Console | http://localhost:9001 | Object storage admin (`minioadmin` / `minioadmin`) |
+| Prometheus | http://localhost:9090 | Metrics |
+| Grafana | http://localhost:3000 | Dashboards (`admin` / `admin`) |
+
+### 6. Run backend tests (optional)
+
+```bash
+cd backend
+npm install
+npm test
+```
+
+### 7. Run the mobile / web app (optional)
+
+```bash
+cd mobile
+flutter pub get
+flutter run -d chrome       # web preview
+# or
+flutter run -d android      # connected Android device / emulator
+# or
+flutter run -d ios          # macOS + Xcode only
+```
+
+Native plugins (camera, GPS, maps) do not work in the browser; use an Android/iOS device for full functionality.
+
+### 8. Stop everything
+
+```bash
+docker compose down
+```
+
+To also remove named volumes (databases, MinIO data, backups):
+
+```bash
+docker compose down -v
+```
+
+### Troubleshooting
+
+| Problem | Cause / Fix |
+|---------|-------------|
+| `bind: address already in use` for port 80 | Another service is using port 80. Stop it or edit `docker-compose.yml` and map a different host port. |
+| `JWT_ACCESS_SECRET` is empty | Make sure `backend/.env` exists and the values are set; the API service loads this file automatically. |
+| `docker compose` not found | Install the Docker Compose CLI plugin in WSL, or use the legacy `docker-compose` command. |
+| Postgres fails to start | Ensure no other Postgres is running on port 5432, or stop the `docker-compose.override.yml` dev profile. |
+| Shell scripts fail with `\r` errors | The `.gitattributes` file forces LF line endings. Re-clone or run `git add --renormalize .` then `git checkout .`. |
+
+### Production mode vs development mode
+
+`docker-compose.override.yml` is loaded automatically and mounts source code with `tsx watch` for hot reload. For a real production deployment, remove or rename that file first:
+
+```bash
+mv docker-compose.override.yml docker-compose.override.yml.dev
+docker compose -f docker-compose.yml up -d
+```
+
 ## Docker Deployment (Self-Hosted)
 
 ### Quick Start
@@ -161,15 +276,6 @@ docker compose --profile setup run --rm createbuckets
 # 4. Scale API horizontally
 docker compose up -d --scale api=3
 ```
-
-### Windows / WSL2 Quick Notes
-
-1. Clone the repo inside WSL (e.g. `~/sennara`) instead of `/mnt/c/...` for much better Docker file-system performance.
-2. Make sure Docker Desktop is running with the **WSL2 backend** enabled for your distro.
-3. Run all `docker compose` commands from a WSL terminal (Ubuntu, Debian, etc.).
-4. The `.gitattributes` file in this repo forces LF line endings for scripts and config files, so they work inside Linux containers without manual conversion.
-
-If `docker compose` is not found, use the legacy `docker-compose` plugin or install the Docker Compose CLI plugin in WSL.
 
 ### Services
 
