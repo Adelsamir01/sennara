@@ -14,25 +14,16 @@ interface CatchWithCounts extends catchRepo.CatchRow {
   comments_count?: string;
 }
 
-function publicCatch(
-  row: CatchWithCounts,
-  viewerId: string,
-  viewerTier?: string
-) {
+function publicCatch(row: CatchWithCounts, viewerId: string) {
   const isOwner = row.user_id === viewerId;
   const coords = catchRepo.parseWktPoint(row.exact_location);
 
-  // Exact location: owner always sees exact.
-  // Others: public -> approximate unless premium; friends_only/secret -> no exact location.
+  // Exact location: owner always sees exact; public -> exact for everyone;
+  // friends_only/secret -> hidden for non-owners.
   let location = coords;
   if (!isOwner && coords) {
     if (row.privacy === 'secret' || row.privacy === 'friends_only') {
       location = null;
-    } else if (row.privacy === 'public' && viewerTier !== 'premium') {
-      location = {
-        latitude: Math.round(coords.latitude * 100) / 100,
-        longitude: Math.round(coords.longitude * 100) / 100,
-      };
     }
   }
 
@@ -97,7 +88,7 @@ export async function getCatch(
       return;
     }
     res.status(200).json({
-      catch: publicCatch(row as CatchWithCounts, req.user!.userId, req.user?.tier),
+      catch: publicCatch(row as CatchWithCounts, req.user!.userId),
     });
   } catch (err) {
     next(err);
@@ -162,9 +153,7 @@ export async function listCatches(
         : null;
 
     res.status(200).json({
-      catches: rows.map((r) =>
-        publicCatch(r as CatchWithCounts, viewerId, req.user?.tier)
-      ),
+      catches: rows.map((r) => publicCatch(r as CatchWithCounts, viewerId)),
       nextCursor,
     });
   } catch (err) {

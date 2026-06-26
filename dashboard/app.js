@@ -359,7 +359,6 @@ function renderProfile() {
     <div class="profile-avatar">${(u.name || 'U').charAt(0)}</div>
     <div class="profile-name">${u.name}</div>
     <div class="profile-handle">@${u.handle || 'user'}</div>
-    ${u.isPremium ? '<div class="profile-badge">⭐ بريميوم</div>' : '<div class="profile-badge" style="background:#eee;color:#666;">مجاني</div>'}
   `;
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card"><div class="stat-value">${myCatches.length}</div><div class="stat-label">صيدات</div></div>
@@ -367,17 +366,7 @@ function renderProfile() {
     <div class="stat-card"><div class="stat-value">${myCatches.reduce((s, c) => s + (c.weightKg || 0), 0).toFixed(1)}</div><div class="stat-label">كجم</div></div>
   `;
   
-  document.getElementById('premium-card').innerHTML = `
-    <h3>⭐ اشتراك بريميوم</h3>
-    <p>احصل على إحداثيات دقيقة، توقعات 7 أيام، إحصائيات متقدمة، ومزامنة أولوية</p>
-    <div class="price">149 ج.م <span class="price-period">/ شهر</span></div>
-    <div class="premium-features">
-      <div class="premium-feature">✅ إحداثيات دقيقة على الخريطة</div>
-      <div class="premium-feature">✅ توقعات طقس بحرية 7 أيام</div>
-      <div class="premium-feature">✅ إحصائيات متقدمة للأنواع</div>
-      <div class="premium-feature">✅ مزامنة أولوية</div>
-    </div>
-  `;
+  document.getElementById('premium-card').innerHTML = '';
 }
 
 function populateCatchSpecies() {

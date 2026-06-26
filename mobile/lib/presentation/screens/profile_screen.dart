@@ -50,24 +50,7 @@ class ProfileScreen extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    l10n.translate('payments.freePlan'),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+                // No plan badge — all features are currently free.
               ],
             ),
           ),

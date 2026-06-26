@@ -10,7 +10,7 @@ import {
 
 function publicWaypoint(
   row: waypointRepo.WaypointRow,
-  viewer?: { userId: string; tier?: string }
+  viewer?: { userId: string }
 ) {
   const coords = waypointRepo.parseWktPoint(row.coordinates);
   const isOwner = viewer ? row.user_id === viewer.userId : false;
@@ -25,19 +25,9 @@ function publicWaypoint(
     depthMeters: row.depth_meters ? parseFloat(String(row.depth_meters)) : null,
     attributes: row.attributes,
     createdAt: row.created_at,
-    // Exact coordinates visible only to owner or premium viewers for public waypoints.
+    // Exact coordinates for public waypoints and owners; hidden for non-owner private waypoints.
     location:
-      isOwner || viewer?.tier === 'premium' || row.privacy !== 'public'
-        ? coords
-        : approximate(coords),
-  };
-}
-
-function approximate(coords: { latitude: number; longitude: number }) {
-  // ~1.1 km grid obfuscation for free users
-  return {
-    latitude: Math.round(coords.latitude * 100) / 100,
-    longitude: Math.round(coords.longitude * 100) / 100,
+      isOwner || row.privacy === 'public' ? coords : null,
   };
 }
 
