@@ -306,6 +306,19 @@ services:
       - backup
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Cloudflare Tunnel (stable public HTTPS)
+  # ---------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: sennara-cloudflared
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    env_file:
+      - ./backend/.env
+    networks:
+      - sennara-network
+    restart: unless-stopped
+
 networks:
   sennara-network:
     driver: bridge

@@ -251,29 +251,50 @@ flutter run -d ios          # macOS + Xcode only
 
 Native plugins (camera, GPS, maps) do not work in the browser; use an Android/iOS device for full functionality.
 
-### 8. Expose the stack publicly (optional)
+### 8. Expose the stack publicly
 
-**Quick and free (temporary URL):** use a Cloudflare Quick Tunnel to get a public HTTPS URL with no account required.
+The project is configured for the stable domain **`https://sennara.adelsamir.com`** via a named Cloudflare Tunnel.
+
+1. Make sure `adelsamir.com` is active on Cloudflare and create a tunnel:
+
+   ```bash
+   cloudflared tunnel create sennara
+   cloudflared tunnel route dns sennara sennara.adelsamir.com
+   ```
+
+2. Get the tunnel token:
+
+   ```bash
+   cloudflared tunnel token sennara
+   ```
+
+3. Paste the token into `backend/.env`:
+
+   ```bash
+   CLOUDFLARE_TUNNEL_TOKEN=<your-token>
+   ```
+
+4. `S3_PUBLIC_ENDPOINT` in `backend/.env` should already be:
+
+   ```bash
+   S3_PUBLIC_ENDPOINT=https://sennara.adelsamir.com
+   ```
+
+5. Start the tunnel container:
+
+   ```bash
+   docker compose up -d cloudflared
+   ```
+
+6. Open `https://sennara.adelsamir.com`.
+
+If you do not have a Cloudflare account yet, you can use a free Cloudflare Quick Tunnel temporarily (the URL changes on restart):
 
 ```bash
 docker run -d --name sennara-cf --network sennara_sennara-network \
   --restart unless-stopped cloudflare/cloudflared:latest \
   tunnel --url http://nginx:80
 ```
-
-Then copy the printed `*.trycloudflare.com` URL, set `S3_PUBLIC_ENDPOINT` in `backend/.env` to match, and restart the API:
-
-```bash
-docker compose up -d --build api
-```
-
-You can view the tunnel URL anytime with:
-
-```bash
-docker logs sennara-cf | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'
-```
-
-**Permanent domain:** sign up for a free Cloudflare account, add your own domain (or use a free subdomain), create a named Cloudflare Tunnel, and run `cloudflared` with the tunnel token.
 
 ### WhatsApp OTP setup
 
